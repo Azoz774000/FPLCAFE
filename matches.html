@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>توقع نتائج المباريات</title>
+  <style>
+    body { font-family: Arial, sans-serif; direction: rtl; background: #f9f9f9; }
+    h2, h3 { text-align: center; }
+    table { width: 95%; margin: auto; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { border: 1px solid #444; padding: 8px; text-align: center; }
+    th { background: #007bff; color: #fff; }
+    input { width: 120px; text-align: center; }
+    button { padding: 6px 12px; cursor: pointer; margin: 2px; }
+    .final { background: #ffeeba; }
+    .add { background: #17a2b8; color: #fff; border: none; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h2>تسجيل توقعات نتائج المباريات</h2>
+  <div style="text-align:center;">
+    <input type="text" id="teamA" placeholder="الفريق A">
+    <input type="text" id="teamB" placeholder="الفريق B">
+    <label>⏰ موعد الإغلاق:</label>
+    <input type="datetime-local" id="lockTime">
+    <button class="add" onclick="addMatch()">➕ إضافة مباراة</button>
+  </div>
+  <h3>إدخال التوقعات</h3>
+  <table id="matchesTable">
+    <tr>
+      <th>م</th>
+      <th>الفريق A</th>
+      <th>الفريق B</th>
+      <th>إغلاق التوقعات</th>
+      <th>توقع A</th>
+      <th>توقع B</th>
+      <th>المشارك</th>
+      <th>إضافة</th>
+    </tr>
+  </table>
+  <h3>النتائج النهائية</h3>
+  <table id="finalResultsTable">
+    <tr>
+      <th>م</th>
+      <th>الفريق A</th>
+      <th>الفريق B</th>
+      <th>نتيجة A</th>
+      <th>نتيجة B</th>
+      <th>تأكيد</th>
+    </tr>
+  </table>
+  <h3>التوقعات المسجلة</h3>
+  <table id="predictions">
+    <tr>
+      <th>المباراة</th>
+      <th>الفريق A</th>
+      <th>الفريق B</th>
+      <th>النتيجة المتوقعة</th>
+      <th>المشارك</th>
+      <th>النقاط</th>
+      <th>إجراءات</th>
+    </tr>
+  </table>
+  <h3>ترتيب المشاركين</h3>
+  <table id="ranking">
+    <tr>
+      <th>الترتيب</th>
+      <th>المشارك</th>
+      <th>مجموع النقاط</th>
+    </tr>
+  </table>
+
+  <script>
+    let matches = [];
+    let predictions = [];
+    let finalResults = {};
+
+    function addMatch() {
+      let teamA = document.getElementById("teamA").value.trim();
+      let teamB = document.getElementById("teamB").value.trim();
+      let lockTime = document.getElementById("lockTime").value;
+      if (!teamA || !teamB || !lockTime) {
+        alert("أدخل أسماء الفريقين وموعد الإغلاق");
+        return;
+      }
+      let matchId = matches.length + 1;
+      matches.push({ id: matchId, teamA, teamB, lockTime: new Date(lockTime) });
+
+      let mt = document.getElementById("matchesTable");
+      let row = mt.insertRow(-1);
+      row.innerHTML = `<td>${matchId}</td><td>${teamA}</td><td>${teamB}</td><td>${lockTime.replace("T"," ")}</td><td><input type="number" min="0" id="a${matchId}"></td><td><input type="number" min="0" id="b${matchId}"></td><td><input type="text" id="name${matchId}"></td><td><button type="button" onclick="addPrediction(${matchId})">✔</button></td>`;
+
+      let ft = document.getElementById("finalResultsTable");
+      let frow = ft.insertRow(-1);
+      frow.innerHTML = `<td>${matchId}</td><td>${teamA}</td><td>${teamB}</td><td><input type="number" min="0" id="fa${matchId}" class="final"></td><td><input type="number" min="0" id="fb${matchId}" class="final"></td><td><button type="button" onclick="setFinalResult(${matchId})">✔</button></td>`;
+
+      document.getElementById("teamA").value = "";
+      document.getElementById("teamB").value = "";
+      document.getElementById("lockTime").value = "";
+    }
+
+    function addPrediction(matchId) {
+      let m = matches.find(x => x.id === matchId);
+      if (new Date() > m.lockTime) { alert("انتهى وقت التوقع لهذه المباراة"); return; }
+      let a = document.getElementById("a" + matchId).value;
+      let b = document.getElementById("b" + matchId).value;
+      let name = document.getElementById("name" + matchId).value;
+      if (a === "" || b === "" || name === "") { alert("رجاءً املأ جميع الحقول"); return; }
+      predictions.push({ id: Date.now(), matchId, a: parseInt(a), b: parseInt(b), name, points: 0 });
+      renderTables();
+      document.getElementById("a" + matchId).value = "";
+      document.getElementById("b" + matchId).value = "";
+      document.getElementById("name" + matchId).value = "";
+    }
+
+    function setFinalResult(matchId) {
+      let a = document.getElementById("fa" + matchId).value;
+      let b = document.getElementById("fb" + matchId).value;
+      if (a === "" || b === "") { alert("أدخل النتيجة النهائية كاملة"); return; }
+      finalResults[matchId] = { a: parseInt(a), b: parseInt(b) };
+      calculatePoints();
+      renderTables();
+    }
+
+    function calculatePoints() {
+      predictions.forEach(p => {
+        p.points = 0;
+        let final = finalResults[p.matchId];
+        if (!final) return;
+        if (p.a === final.a && p.b === final.b) { p.points = 3; } 
+        else { let predictedOutcome = (p.a === p.b) ? "draw" : (p.a > p.b ? "A" : "B"); let finalOutcome = (final.a === final.b) ? "draw" : (final.a > final.b ? "A" : "B"); if (predictedOutcome === finalOutcome) p.points = 1; }
+      });
+    }
+
+    function renderTables() {
+      let table = document.getElementById("predictions");
+      table.innerHTML = `<tr><th>المباراة</th><th>الفريق A</th><th>الفريق B</th><th>النتيجة المتوقعة</th><th>المشارك</th><th>النقاط</th><th>إجراءات</th></tr>`;
+      predictions.forEach(p => {
+        let m = matches.find(x => x.id === p.matchId);
+        let row = table.insertRow(-1);
+        row.insertCell(0).innerText = p.matchId;
+        row.insertCell(1).innerText = m.teamA;
+        row.insertCell(2).innerText = m.teamB;
+        row.insertCell(3).innerText = p.a + " - " + p.b;
+        row.insertCell(4).innerText = p.name;
+        row.insertCell(5).innerText = p.points;
+        let actions = row.insertCell(6);
+        if (new Date() < m.lockTime) { actions.innerHTML = `<button onclick="editPrediction(${p.id})">✏</button><button onclick="deletePrediction(${p.id})">🗑</button>`; } 
+        else { actions.innerHTML = `<span style="color:#888;">مغلق</span>`; }
+      });
+
+      let ranking = {};
+      predictions.forEach(p => { if (!ranking[p.name]) ranking[p.name] = 0; ranking[p.name] += p.points; });
+      let sorted = Object.entries(ranking).sort((a,b) => b[1]-a[1]);
+      let rankTable = document.getElementById("ranking");
+      rankTable.innerHTML = `<tr><th>الترتيب</th><th>المشارك</th><th>مجموع النقاط</th></tr>`;
+      sorted.forEach((r,i) => { let row = rankTable.insertRow(-1); row.insertCell(0).innerText = i+1; row.insertCell(1).innerText = r[0]; row.insertCell(2).innerText = r[1]; });
+    }
+
+    function editPrediction(id) {
+      let pred = predictions.find(p => p.id===id);
+      let m = matches.find(x=>x.id===pred.matchId);
+      if (new Date()>m.lockTime) { alert("انتهى وقت التعديل لهذه المباراة"); return; }
+      let newA = prompt("تعديل نتيجة الفريق A:", pred.a);
+      let newB = prompt("تعديل نتيجة الفريق B:", pred.b);
+      if (newA===null||newB===null) return;
+      pred.a=parseInt(newA); pred.b=parseInt(newB);
+      calculatePoints(); renderTables();
+    }
+
+    function deletePrediction(id) {
+      let pred = predictions.find(p=>p.id===id);
+      let m = matches.find(x=>x.id===pred.matchId);
+      if (new Date()>m.lockTime) { alert("انتهى وقت الحذف لهذه المباراة"); return; }
+      predictions = predictions.filter(p=>p.id!==id);
+      renderTables();
+    }
+  </script>
+</body>
+</html>
